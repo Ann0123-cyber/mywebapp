@@ -24,7 +24,7 @@ DB_CONFIG = {
     "port": args.db_port,
     "user": args.db_user,
     "password": args.db_password,
-    "name": args.db_name,
+    "database": args.db_name,
     "cursorclass": pymysql.cursors.DictCursor,
     "charset": "utf8mb4",
 }
@@ -45,9 +45,29 @@ def db_is_ready() -> bool:
 #-----------------------------------------------------------
 # Response helpers
 
+def wants_html(request: Request):
+    accept = request.headers.get("accept", "")
+    # If client explicitly asks for html, or no preference given → html
+    if "text/html" in accept:
+        return True
+    if "application/json" in accept:
+        return False
+    else:
+        return True
 
-
-
+def html_page(title: str, body: str) -> HTMLResponse:
+    html = f""" <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{title}</title>
+</head>
+<body>
+    <h1>{title}</h1>
+    {body}
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 #----------------------------------------------------------
