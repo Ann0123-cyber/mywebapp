@@ -88,15 +88,110 @@ def health_ready():
     )
 
 #----------------------------------------------------------
+# Notes endpoints
+@app.get("/notes")
+def list_notes(request: Request):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title FROM notes ORDER BY created_at DESC")
+            rows = cur.fetchall()
+            # Перевіряємо формат відповіді
+        if wants_html(request):
+            if not rows:
+                body = "<p>Нотаток поки немає.</p>"
+            else:
+                # Збираємо рядки таблиці
+                table_rows = ""
+                for row in rows:
+                    table_rows += f"<tr><td>{row['id']}</td><td>{row['title']}</td></tr>"
 
-@app.get("/")
-def read_root():
-    return {
-        "database_user": args.db_user
-    }
+                body = f"""
+                <table border="1" cellpadding="5" cellspacing="0">
+                    <tr><th>ID</th><th>Заголовок</th></tr>
+                    {table_rows}
+                </table>
+                """
+            return html_page("Список нотаток", body)
+
+        # Якщо не HTML, то повертаємо JSON
+        return JSONResponse(content=rows)
+    finally:
+        conn.close()
+
+
+@app.post("/notes", status_code=201)
+async def create_note(request: Request):
+    content_type = request.headers.get("content-type", "")
+
+    if "application/json" in content_type:
+        data = await request.json()
+        title = data.get("title", "").strip()
+        content = data.get("content", "").strip()
+    else:
+        # form data
+        form = await request.form()
+        title = str(form.get("title", "")).strip()
+        content = str(form.get("content", "")).strip()
+
+    if not title or not content:
+        raise HTTPException(status_code=422, detail="title and content are required")
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO notes (title, content) VALUES (%s, %s)",
+                (title, content),
+            )
+            note_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    if wants_html(request):
+        return html_page(
+            "Note Created",
+            f"<p>Note created with ID: <strong>{note_id}</strong></p>"
+            f'<p><a href="/notes/{note_id}">View note</a> | <a href="/notes">All notes</a></p>',
+        )
+
+    return JSONResponse(content={"id": note_id, "title": title}, status_code=201)
+
+
+@app.get("/notes/{note_id}")
+def get_note(note_id: int, request: Request):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, content, created_at FROM notes WHERE id = %s",
+                (note_id,),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
+
+    row["created_at"] = str(row["created_at"])
+
+    if wants_html(request):
+        body = f"""
+<table border="1" cellpadding="6" cellspacing="0">
+  <tr><th>ID</th><td>{row['id']}</td></tr>
+  <tr><th>Title</th><td>{row['title']}</td></tr>
+  <tr><th>Created at</th><td>{row['created_at']}</td></tr>
+  <tr><th>Content</th><td>{row['content']}</td></tr>
+</table>
+<p><a href="/notes">Back to all notes</a></p>"""
+        return html_page(f"Note #{row['id']}: {row['title']}", body)
+
+    return JSONResponse(content=row)
 
 
 #------------------------------------------------------------------
 # Entry point
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app:app", host=args.host, port=args.port, reload=False)
