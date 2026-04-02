@@ -1,0 +1,15 @@
+[Unit]
+Description=Notes Service
+Requires=mywebapp.socket
+After=network.target mariadb.service
+
+[Service]
+User=app
+Group=app
+WorkingDirectory=/opt/mywebapp
+ExecStartPre=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/migrate.py --db-user mywebapp --db-password CHANGE_ME --db-name notes
+ExecStart=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/app.py --db-user mywebapp --db-password CHANGE_ME --db-name notes
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
