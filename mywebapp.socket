@@ -2,7 +2,10 @@
 Description=My Web App Socket
 
 [Socket]
-ListenStream=127.0.0.1:8000
+ListenStream=/run/mywebapp.sock
+SocketUser=app
+SocketGroup=www-data
+SocketMode=0660
 
 [Install]
 WantedBy=sockets.target

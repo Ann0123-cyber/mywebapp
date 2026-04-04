@@ -7,8 +7,8 @@ After=network.target mariadb.service
 User=app
 Group=app
 WorkingDirectory=/opt/mywebapp
-ExecStartPre=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/migrate.py --db-user mywebapp --db-password CHANGE_ME --db-name notes
-ExecStart=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/app.py --db-user mywebapp --db-password CHANGE_ME --db-name notes
+ExecStartPre=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/migrate.py --db-user mywebapp --db-password K6DG5zCJ0NszUTNpmutoIg== --db-name notes
+ExecStart=/opt/mywebapp/venv/bin/python3 -m uvicorn app:app --uds /run/mywebapp.sock
 Restart=always
 
 [Install]

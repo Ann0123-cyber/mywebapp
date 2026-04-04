@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-import uvicorn, argparse
+import argparse
 import pymysql
 import pymysql.cursors
+import os
 
 #------------------------------------------------------
 # CLI arguments
@@ -12,9 +13,9 @@ def parse_args():
     parser.add_argument("--port", type=int, default=8000, help="Listen port")
     parser.add_argument("--db-host", default="127.0.0.1", help="MariaDB host")
     parser.add_argument("--db-port", type=int, default=3306, help="MariaDB port")
-    parser.add_argument("--db-user", required=True, help="MariaDB user")
-    parser.add_argument("--db-password", required=True, help="MariaDB password")
-    parser.add_argument("--db-name", required=True, help="MariaDB database name")
+    parser.add_argument("--db-user", default=os.getenv('DB_USER'), help="MariaDB user")
+    parser.add_argument("--db-password", default=os.getenv('DB_PASSWORD'), help="MariaDB password")
+    parser.add_argument("--db-name", default=os.getenv('DB_NAME'), help="MariaDB database name")
     return parser.parse_args()
 
 args = parse_args()
@@ -22,9 +23,9 @@ args = parse_args()
 DB_CONFIG = {
     "host": args.db_host,
     "port": args.db_port,
-    "user": args.db_user,
-    "password": args.db_password,
-    "database": args.db_name,
+    "user": os.getenv("DB_USER", args.db_user),
+    "password": os.getenv("DB_PASSWORD", args.db_password),
+    "database": os.getenv("DB_NAME", args.db_name),
     "cursorclass": pymysql.cursors.DictCursor,
     "charset": "utf8mb4",
 }
@@ -194,4 +195,5 @@ def get_note(note_id: int, request: Request):
 #------------------------------------------------------------------
 # Entry point
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=args.host, port=args.port, reload=False)
+    import uvicorn
+    uvicorn.run(app, uds="/run/mywebapp.sock")
