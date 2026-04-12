@@ -4,6 +4,8 @@ set -euo pipefail
 # --------------------------------------------------------------------------
 # Config
 # --------------------------------------------------------------------------
+set -euo pipefail
+
 APP_DIR="/opt/mywebapp"
 APP_USER="app"
 DB_NAME="notes"
@@ -53,7 +55,7 @@ fi
 
 # operator — обмежений sudo
 if ! id "$OPERATOR_USER" &>/dev/null; then
-    useradd -m -s /bin/bash "$OPERATOR_USER"
+    useradd -m -s /bin/bash --gid users "$OPERATOR_USER"
     echo "$OPERATOR_USER:$DEFAULT_PASSWORD" | chpasswd
     chage -d 0 "$OPERATOR_USER"
     log "Створено користувача $OPERATOR_USER (пароль: $DEFAULT_PASSWORD)"
@@ -76,6 +78,8 @@ if ! id "$APP_USER" &>/dev/null; then
     log "Створено системного користувача $APP_USER"
 fi
 
+usermod -aG www-data "$APP_USER"
+
 # --------------------------------------------------------------------------
 # 3. База даних
 # --------------------------------------------------------------------------
@@ -85,9 +89,11 @@ systemctl start mariadb
 
 mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASSWORD';"
+mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost'  IDENTIFIED BY '$DB_PASSWORD';"
 mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1';"
+mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
 mysql -e "FLUSH PRIVILEGES;"
-log "БД '$DB_NAME' і користувач '$DB_USER' готові"
+log "БД '$DB_NAME' готова"
 
 # --------------------------------------------------------------------------
 # 4. Копіювання файлів застосунку
@@ -103,6 +109,11 @@ python3 -m venv "$APP_DIR/venv"
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
+echo "$DB_PASSWORD" > "$APP_DIR/.dbpass"
+chmod 600 "$APP_DIR/.dbpass"
+chown root:root "$APP_DIR/.dbpass"
+log "Пароль БД збережено: $APP_DIR/.dbpass"
+
 # --------------------------------------------------------------------------
 # 5. Systemd сервіс
 # --------------------------------------------------------------------------
@@ -114,27 +125,30 @@ cp mywebapp.socket /etc/systemd/system/mywebapp.socket
 
 systemctl daemon-reload
 systemctl enable mywebapp.socket
+systemctl start mywebapp.socket
 log "Systemd unit встановлено"
 
 # --------------------------------------------------------------------------
-# 6. Запуск (через socket activation)
+# 6. Nginx
 # --------------------------------------------------------------------------
-log "=== 6. Запуск сервісу ==="
-systemctl start mywebapp.socket
-# Перший запит активує сервіс
-sleep 1
-curl -s http://127.0.0.1:8000/health/alive || true
-
-# --------------------------------------------------------------------------
-# 7. Nginx
-# --------------------------------------------------------------------------
-log "=== 7. Nginx ==="
+log "=== 6. Nginx ==="
 cp nginx.conf /etc/nginx/sites-available/mywebapp
 ln -sf /etc/nginx/sites-available/mywebapp /etc/nginx/sites-enabled/mywebapp
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl enable nginx
 systemctl restart nginx
+
+# ── 7. Перевірка що сервіс піднявся ──────────────────────────────────────
+log "=== 7. Smoke test ==="
+sleep 1
+# Перший запит активує socket activation і запускає сервіс
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/health/alive || true)
+if [ "$HTTP_CODE" = "200" ]; then
+    log "Сервіс відповідає: OK"
+else
+    log "УВАГА: сервіс не відповів (код: $HTTP_CODE). Перевір: journalctl -u mywebapp -n 30"
+fi
 
 # --------------------------------------------------------------------------
 # 8. Gradebook
@@ -162,8 +176,5 @@ log ""
 log "============================================"
 log " Розгортання завершено успішно!"
 log " Перевірка: curl http://localhost/notes"
-log " БД пароль збережено у: /opt/mywebapp/.dbpass"
+log " Пароль БД: sudo cat $APP_DIR/.dbpass"
 log "============================================"
-echo "$DB_PASSWORD" > /opt/mywebapp/.dbpass
-chmod 600 /opt/mywebapp/.dbpass
-chown root:root /opt/mywebapp/.dbpass

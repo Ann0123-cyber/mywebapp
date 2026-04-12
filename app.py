@@ -87,6 +87,22 @@ def health_ready():
         content="Service not ready: cannot connect to database",
         status_code=500,
     )
+# ── Root ───────────────────────────────────────────────────────────────────
+@app.get("/", response_class=HTMLResponse)
+def root():
+    body = """
+<table border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>GET</td><td>/notes</td><td>Список нотаток (id, title)</td></tr>
+    <tr><td>POST</td><td>/notes</td><td>Створити нотатку (title, content)</td></tr>
+    <tr><td>GET</td><td>/notes/{id}</td><td>Нотатка повністю (id, title, content, created_at)</td></tr>
+  </tbody>
+</table>"""
+    return html_page("Notes Service — доступні ендпоінти", body)
+
 
 #----------------------------------------------------------
 # Notes endpoints
@@ -196,4 +212,8 @@ def get_note(note_id: int, request: Request):
 # Entry point
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, uds="/run/mywebapp.sock")
+    listen_fds = int(os.getenv("LISTEN_FDS", "0"))
+    if listen_fds >= 1:
+        uvicorn.run(app, fd=3)
+    else:
+        uvicorn.run(app, host=args.host, port=args.port)

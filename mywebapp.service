@@ -7,9 +7,23 @@ After=network.target mariadb.service
 User=app
 Group=app
 WorkingDirectory=/opt/mywebapp
-ExecStartPre=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/migrate.py --db-user mywebapp --db-password K6DG5zCJ0NszUTNpmutoIg== --db-name notes
-ExecStart=/opt/mywebapp/venv/bin/python3 -m uvicorn app:app --uds /run/mywebapp.sock
-Restart=always
+
+ExecStartPre=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/migrate.py \
+    --db-host 127.0.0.1 \
+    --db-user mywebapp \
+    --db-password CHANGE_ME \
+    --db-name notes
+
+ExecStart=/opt/mywebapp/venv/bin/python3 /opt/mywebapp/app.py \
+    --db-host 127.0.0.1 \
+    --db-user mywebapp \
+    --db-password CHANGE_ME \
+    --db-name notes
+
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
