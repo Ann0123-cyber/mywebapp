@@ -1,0 +1,83 @@
+services:
+
+  # ── База даних ────────────────────────────────────────────────────────────
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: rootsecret
+      MARIADB_DATABASE: notes
+      MARIADB_USER: mywebapp
+      MARIADB_PASSWORD: changeme
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Міграція БД ───────────────────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      python migrate.py
+        --db-host db
+        --db-user mywebapp
+        --db-password changeme
+        --db-name notes
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Веб-застосунок ────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      python app.py
+        --host 0.0.0.0
+        --port 8000
+        --db-host db
+        --db-user mywebapp
+        --db-password changeme
+        --db-name notes
+    restart: unless-stopped
+    networks:
+      - backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+
+  # ── Nginx ─────────────────────────────────────────────────────────────────
+  nginx:
+    build:
+      context: nginx/
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - backend
+    depends_on:
+      - app
+
+# ── Мережа ────────────────────────────────────────────────────────────────
+networks:
+  backend:
+    driver: bridge
+
+# ── Том для даних БД ──────────────────────────────────────────────────────
+volumes:
+  db_data:
