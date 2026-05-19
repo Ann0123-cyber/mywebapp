@@ -141,3 +141,8 @@ def test_get_note_html():
         response = client.get("/notes/1", headers={"Accept": "text/html"})
         assert response.status_code == 200
         assert "Test" in response.text
+
+
+def test_intentionally_failing():
+    """This test is intentionally failing for demonstration purposes."""
+    assert 1 == 2, "This PR should be blocked"
