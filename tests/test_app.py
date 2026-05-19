@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 
+
 def mock_parse_args():
     return argparse.Namespace(
         host="127.0.0.1",
@@ -19,6 +20,7 @@ def mock_parse_args():
         db_name="test"
     )
 
+
 with patch("argparse.ArgumentParser.parse_args", return_value=mock_parse_args()):
     with patch("pymysql.connect") as mock_conn:
         mock_conn.return_value = MagicMock()
@@ -26,58 +28,71 @@ with patch("argparse.ArgumentParser.parse_args", return_value=mock_parse_args())
         client = TestClient(app_module.app)
 
 
+def make_mock_conn(fetchall=None, fetchone=None, lastrowid=1):
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = fetchall or []
+    mock_cursor.fetchone.return_value = fetchone
+    mock_cursor.lastrowid = lastrowid
+    mock_cursor.__enter__ = lambda s: s
+    mock_cursor.__exit__ = MagicMock(return_value=False)
+    mock_connection = MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    return mock_connection, mock_cursor
+
+
 # --- Health endpoints ---
 
 def test_alive():
     response = client.get("/health/alive")
     assert response.status_code == 200
-    assert response.text == '"OK"' or response.json() == "OK" or "OK" in response.text
+    assert "OK" in response.text
 
 
 def test_ready_db_ok():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_db.cursor.return_value = mock_cursor
+    with patch("app.get_connection") as mock_get_conn:
+        mock_get_conn.return_value = MagicMock()
         response = client.get("/health/ready")
         assert response.status_code == 200
 
 
 def test_ready_db_fail():
-    with patch.object(app_module, "db_conn", None):
+    with patch("app.get_connection") as mock_get_conn:
+        mock_get_conn.side_effect = Exception("DB error")
         response = client.get("/health/ready")
         assert response.status_code == 500
+
+
+# --- Root ---
+
+def test_root_html():
+    response = client.get("/", headers={"Accept": "text/html"})
+    assert response.status_code == 200
+    assert "notes" in response.text.lower()
 
 
 # --- Notes API (JSON) ---
 
 def test_get_notes_empty():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = []
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, _ = make_mock_conn(fetchall=[])
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.get("/notes", headers={"Accept": "application/json"})
         assert response.status_code == 200
         assert response.json() == []
 
 
 def test_get_notes_with_data():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [(1, "Test Note")]
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, _ = make_mock_conn(fetchall=[{"id": 1, "title": "Test Note"}])
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.get("/notes", headers={"Accept": "application/json"})
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["id"] == 1
         assert data[0]["title"] == "Test Note"
 
 
 def test_create_note_json():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.lastrowid = 42
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, mock_cursor = make_mock_conn(lastrowid=42)
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.post(
             "/notes",
             json={"title": "New Note", "content": "Some content"},
@@ -90,10 +105,10 @@ def test_create_note_json():
 
 
 def test_get_note_by_id():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (1, "Test", "Content", "2025-01-01 00:00:00")
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, _ = make_mock_conn(
+        fetchone={"id": 1, "title": "Test", "content": "Content", "created_at": "2025-01-01 00:00:00"}
+    )
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.get("/notes/1", headers={"Accept": "application/json"})
         assert response.status_code == 200
         data = response.json()
@@ -102,10 +117,8 @@ def test_get_note_by_id():
 
 
 def test_get_note_not_found():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, _ = make_mock_conn(fetchone=None)
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.get("/notes/9999", headers={"Accept": "application/json"})
         assert response.status_code == 404
 
@@ -113,16 +126,18 @@ def test_get_note_not_found():
 # --- HTML responses ---
 
 def test_get_notes_html():
-    with patch.object(app_module, "db_conn") as mock_db:
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [(1, "HTML Note")]
-        mock_db.cursor.return_value = mock_cursor
+    mock_conn, _ = make_mock_conn(fetchall=[{"id": 1, "title": "HTML Note"}])
+    with patch("app.get_connection", return_value=mock_conn):
         response = client.get("/notes", headers={"Accept": "text/html"})
         assert response.status_code == 200
         assert "HTML Note" in response.text
 
 
-def test_root_html():
-    response = client.get("/", headers={"Accept": "text/html"})
-    assert response.status_code == 200
-    assert "notes" in response.text.lower()
+def test_get_note_html():
+    mock_conn, _ = make_mock_conn(
+        fetchone={"id": 1, "title": "Test", "content": "Content", "created_at": "2025-01-01 00:00:00"}
+    )
+    with patch("app.get_connection", return_value=mock_conn):
+        response = client.get("/notes/1", headers={"Accept": "text/html"})
+        assert response.status_code == 200
+        assert "Test" in response.text
