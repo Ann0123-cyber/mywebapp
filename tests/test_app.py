@@ -9,18 +9,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 
 def mock_parse_args():
-    args = argparse.Namespace(
+    return argparse.Namespace(
         host="127.0.0.1",
         port=8000,
         db_host="127.0.0.1",
+        db_port=3306,
         db_user="test",
         db_password="test",
         db_name="test"
     )
-    return args
 
 with patch("argparse.ArgumentParser.parse_args", return_value=mock_parse_args()):
-    with patch("mysql.connector.connect") as mock_conn:
+    with patch("pymysql.connect") as mock_conn:
         mock_conn.return_value = MagicMock()
         import app as app_module
         client = TestClient(app_module.app)
