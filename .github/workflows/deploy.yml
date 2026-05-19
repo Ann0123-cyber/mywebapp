@@ -9,19 +9,37 @@ jobs:
   deploy:
     name: Deploy to target VM
     runs-on: self-hosted
-    needs: []
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
       - name: Deploy application
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo systemctl stop mywebapp || true && \
-             sudo docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }} && \
-             sudo systemctl start mywebapp"
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "sudo docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }} && \
+             sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${{ github.repository }}:${{ github.ref_name }}|' \
+               /etc/systemd/system/mywebapp-container.service && \
+             sudo systemctl daemon-reload && \
+             sudo systemctl restart mywebapp-container"
+
+      - name: Wait for service to start
+        run: sleep 10
 
       - name: Verify deployment
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "bash ~/verify.sh"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

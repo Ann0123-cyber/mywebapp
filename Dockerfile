@@ -15,8 +15,4 @@ EXPOSE 8000
 
 CMD ["python", "app.py", \
      "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--db-host", "db", \
-     "--db-user", "mywebapp", \
-     "--db-password", "changeme", \
-     "--db-name", "notes"]
+     "--port", "8000"]
