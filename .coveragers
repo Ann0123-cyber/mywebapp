@@ -1,0 +1,8 @@
+[run]
+source = .
+omit =
+    tests/*
+    migrate.py
+
+[report]
+fail_under = 40

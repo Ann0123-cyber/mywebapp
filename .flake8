@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E265,E302,E303,E305,W292
+exclude =
+    __pycache__,
+    .git,
+    nginx
