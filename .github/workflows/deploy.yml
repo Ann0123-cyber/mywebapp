@@ -23,7 +23,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            anna@192.168.56.102 \
             "sudo docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }} && \
              sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${{ github.repository }}:${{ github.ref_name }}|' \
                /etc/systemd/system/mywebapp-container.service && \
@@ -37,7 +37,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            anna@192.168.56.102 \
             "bash ~/verify.sh"
 
       - name: Cleanup SSH key
