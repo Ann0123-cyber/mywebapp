@@ -29,7 +29,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-            images: ghcr.io/${{ github.repository_owner | lower }}/mywebapp
+            images: ghcr.io/${{ github.repository_owner }}/mywebapp
             tags: |
               type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/heads/') }}
               type=sha,prefix=sha-,format=long,enable=${{ startsWith(github.ref, 'refs/heads/') }}
