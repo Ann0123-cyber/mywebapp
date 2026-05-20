@@ -26,15 +26,15 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: |
-          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
-            anna@192.168.56.102 \
-            "sudo docker pull ghcr.io/${REPO_LOWER}:${{ github.ref_name }} && \
-             sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${REPO_LOWER}:${{ github.ref_name }}|g' \
-               /etc/systemd/system/mywebapp-container.service && \
-             sudo systemctl daemon-reload && \
-             sudo systemctl restart mywebapp-container"
+            REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+            ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              anna@192.168.56.102 \
+              "docker pull ghcr.io/${REPO_LOWER}:${{ github.ref_name }} && \
+               sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${REPO_LOWER}:${{ github.ref_name }}|g' \
+                 /etc/systemd/system/mywebapp-container.service && \
+               sudo systemctl daemon-reload && \
+               sudo systemctl restart mywebapp-container"
 
       - name: Wait for service to start
         run: sleep 15
