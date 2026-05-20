@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Wait for build to complete
+        run: sleep 120
+
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
@@ -23,19 +26,18 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: |
-            REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
-            ssh -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
-              anna@192.168.56.102 \
-              "sudo docker pull ghcr.io/${REPO_LOWER}:${{ github.ref_name }} && \
-               sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${REPO_LOWER}:${{ github.ref_name }}|' \
-                 /etc/systemd/system/mywebapp-container.service && \
-               sudo systemctl daemon-reload && \
-               sudo systemctl restart mywebapp-container"
-            
+          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            anna@192.168.56.102 \
+            "sudo docker pull ghcr.io/${REPO_LOWER}:${{ github.ref_name }} && \
+             sudo sed -i 's|ghcr.io/.*:.*|ghcr.io/${REPO_LOWER}:${{ github.ref_name }}|g' \
+               /etc/systemd/system/mywebapp-container.service && \
+             sudo systemctl daemon-reload && \
+             sudo systemctl restart mywebapp-container"
 
       - name: Wait for service to start
-        run: sleep 10
+        run: sleep 15
 
       - name: Verify deployment
         run: |
